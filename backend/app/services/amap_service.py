@@ -10,24 +10,47 @@ class AMapService:
         self.api_key = settings.amap_api_key
         self.base_url = "https://restapi.amap.com/v3"
     
-    async def search_poi(self, keywords: str, city: str) -> List[Dict[str, Any]]:
+    async def get_city_code(self, city_name: str) -> Optional[str]:
         """
-        搜索POI（兴趣点），如景点、酒店、餐厅
+        根据城市名称获取城市代码（adcode）
         
         Args:
-            keywords: 搜索关键词，如"景点"、"酒店"
-            city: 城市名称，如"北京"
+            city_name: 城市名称，如"北京"、"澳门"
         
         Returns:
-            搜索结果列表
+            城市代码，如"110000"
         """
+        url = f"{self.base_url}/config/district"
+        params = {
+            "keywords": city_name,
+            "key": self.api_key,
+            "subdistrict": 0,
+            "output": "json"
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params)
+            data = response.json()
+            
+            if data.get("status") != "1":
+                print(f"获取城市代码失败: {data}")
+                return None
+            
+            districts = data.get("districts", [])
+            if districts:
+                return districts[0].get("adcode")
+            
+            return None
+    
+    async def search_poi(self, keywords: str, city: str) -> List[Dict[str, Any]]:
+        """搜索POI（兴趣点）"""
         url = f"{self.base_url}/place/text"
         params = {
             "keywords": keywords,
             "city": city,
             "key": self.api_key,
             "output": "json",
-            "offset": 20  # 最多返回20条结果
+            "offset": 20
         }
         
         async with httpx.AsyncClient() as client:
@@ -40,7 +63,6 @@ class AMapService:
             
             results = data.get("pois", [])
             
-            # 转换为统一格式
             formatted_results = []
             for poi in results:
                 location = poi.get("location", "").split(",")
@@ -68,11 +90,20 @@ class AMapService:
         Returns:
             天气预报列表
         """
+        # 先获取城市代码
+        city_code = await self.get_city_code(city)
+        
+        if not city_code:
+            print(f"无法获取{city}的城市代码")
+            return []
+        
+        # 使用城市代码查询天气
         url = f"{self.base_url}/weather/weatherInfo"
         params = {
-            "city": city,
+            "city": city_code,
             "key": self.api_key,
-            "extensions": "all"  # 返回未来几天的预报
+            "extensions": "all",
+            "output": "json"
         }
         
         async with httpx.AsyncClient() as client:
@@ -87,7 +118,6 @@ class AMapService:
             if not forecasts:
                 return []
             
-            # 获取未来几天的天气预报
             casts = forecasts[0].get("casts", [])
             
             formatted_weather = []
