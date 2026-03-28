@@ -1,20 +1,26 @@
-<!-- frontend/src/components/MapView.vue -->
 <template>
-  <div ref="mapContainer" class="map-container" />
+  <div ref="mapContainer" class="map-container" :style="{ height: `${height}px` }" />
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import type { DayPlan, MealRecommendation, Attraction } from '../types'
+import { computed, onMounted, ref, watch } from 'vue'
+import type { Attraction, DayPlan, MealRecommendation, RouteSegment } from '../types'
 
-const props = defineProps<{ days: DayPlan[] }>()
+const props = withDefaults(defineProps<{
+  days?: DayPlan[]
+  day?: DayPlan
+  height?: number
+}>(), {
+  days: () => [],
+  day: undefined,
+  height: 480,
+})
+
 const mapContainer = ref<HTMLElement | null>(null)
-
-// 高德地图 JS API key（在 .env 里配置 VITE_AMAP_JS_KEY）
 const AMAP_KEY = import.meta.env.VITE_AMAP_JS_KEY || ''
-
-// 每天一个颜色
 const DAY_COLORS = ['#534AB7', '#0F6E56', '#D85A30', '#185FA5', '#854F0B', '#993556', '#3B6D11']
+
+const normalizedDays = computed(() => props.day ? [props.day] : props.days)
 
 let map: any = null
 
@@ -23,16 +29,18 @@ onMounted(async () => {
   initMap()
 })
 
-watch(() => props.days, () => {
-  if (map) {
-    map.clearMap()
-    plotDays()
-  }
+watch(normalizedDays, () => {
+  if (!map) return
+  map.clearMap()
+  plotDays()
 }, { deep: true })
 
 function loadAmapScript(): Promise<void> {
   return new Promise((resolve) => {
-    if ((window as any).AMap) { resolve(); return }
+    if ((window as any).AMap) {
+      resolve()
+      return
+    }
     const script = document.createElement('script')
     script.src = `https://webapi.amap.com/maps?v=2.0&key=${AMAP_KEY}`
     script.onload = () => resolve()
@@ -52,106 +60,147 @@ function initMap() {
 function plotDays() {
   const AMap = (window as any).AMap
   const allPoints: any[] = []
+  const rawPoints: Array<{ longitude: number; latitude: number }> = []
 
-  props.days.forEach((day: DayPlan, dayIdx: number) => {
+  normalizedDays.value.forEach((day: DayPlan, dayIdx: number) => {
     const color = DAY_COLORS[dayIdx % DAY_COLORS.length]
-    const dayPoints: [number, number][] = []
 
-    // 标注酒店
-    if (day.hotel && day.hotel.location.longitude !== 0) {
-      const { longitude: lng, latitude: lat } = day.hotel.location
-      const marker = new AMap.Marker({
-        position: new AMap.LngLat(lng, lat),
-        title: `[住宿] ${day.hotel.name}`,
-        icon: new AMap.Icon({
-          size: new AMap.Size(24, 24),
-          image: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png',
-          imageSize: new AMap.Size(24, 24),
-        }),
-      })
-      marker.setLabel({ content: `<div style="font-size:11px;white-space:nowrap">${day.hotel.name}</div>`, direction: 'top' })
-      map.add(marker)
-      allPoints.push(new AMap.LngLat(lng, lat))
+    if (day.hotel) {
+      const { longitude, latitude } = day.hotel.location
+      if (longitude && latitude) {
+        addMarker(
+          AMap,
+          longitude,
+          latitude,
+          `[酒店] ${day.hotel.name}`,
+          `<div class="map-label hotel-label">住</div>`,
+          `酒店：${day.hotel.name}<br/>${day.hotel.address}`,
+        )
+        allPoints.push(new AMap.LngLat(longitude, latitude))
+        rawPoints.push({ longitude, latitude })
+      }
     }
 
-    // 标注餐厅
     day.meals.forEach((meal: MealRecommendation) => {
-      if (meal.location.longitude === 0) return
-      const { longitude: lng, latitude: lat } = meal.location
-      const marker = new AMap.Marker({
-        position: new AMap.LngLat(lng, lat),
-        title: `[${meal.meal_type}] ${meal.name}`,
-      })
-      map.add(marker)
+      const { longitude, latitude } = meal.location
+      if (!longitude || !latitude) return
+      addMarker(
+        AMap,
+        longitude,
+        latitude,
+        `[${meal.meal_type}] ${meal.name}`,
+        `<div class="map-label meal-label">${meal.meal_type.slice(0, 1)}</div>`,
+        `${meal.meal_type}：${meal.name}<br/>人均约 ¥${meal.estimated_cost_per_person}`,
+      )
+      allPoints.push(new AMap.LngLat(longitude, latitude))
+      rawPoints.push({ longitude, latitude })
     })
 
-    // 标注景点 + 编号
-    day.attractions.forEach((attr: Attraction, attrIdx: number) => {
-      if (attr.location.longitude === 0) return
-      const { longitude: lng, latitude: lat } = attr.location
-
-      const marker = new AMap.Marker({
-        position: new AMap.LngLat(lng, lat),
-        title: attr.name,
-        label: {
-          content: `<div style="
-            background:${color};
-            color:#fff;
-            border-radius:50%;
-            width:22px;height:22px;
-            display:flex;align-items:center;justify-content:center;
-            font-size:12px;font-weight:600;
-          ">${attrIdx + 1}</div>`,
-          direction: 'top',
-        },
-      })
-
-      // 点击弹出信息窗
-      const infoWindow = new AMap.InfoWindow({
-        content: `
-          <div style="padding:8px;min-width:180px">
-            <div style="font-weight:600;margin-bottom:4px">${attr.name}</div>
-            <div style="font-size:12px;color:#666">${attr.address}</div>
-            <div style="font-size:12px;margin-top:4px">门票：¥${attr.ticket_price}</div>
-            <div style="font-size:12px">游览：${attr.visit_duration}分钟</div>
-            ${attr.is_indoor ? '<div style="font-size:11px;color:#0F6E56;margin-top:4px">室内景点</div>' : ''}
-          </div>
-        `,
-        offset: new AMap.Pixel(0, -30),
-      })
-      marker.on('click', () => infoWindow.open(map, marker.getPosition()))
-
-      map.add(marker)
-      dayPoints.push([lng, lat])
-      allPoints.push(new AMap.LngLat(lng, lat))
+    day.attractions.forEach((attr: Attraction, index: number) => {
+      const { longitude, latitude } = attr.location
+      if (!longitude || !latitude) return
+      addMarker(
+        AMap,
+        longitude,
+        latitude,
+        attr.name,
+        `<div class="map-label attraction-label" style="background:${color}">${index + 1}</div>`,
+        `${attr.name}<br/>门票 ¥${attr.ticket_price} · ${attr.visit_duration} 分钟`,
+      )
+      allPoints.push(new AMap.LngLat(longitude, latitude))
+      rawPoints.push({ longitude, latitude })
     })
 
-    // 画路线（折线连接当天景点）
-    if (dayPoints.length > 1) {
+    day.route_segments.forEach((segment: RouteSegment) => {
+      if (!segment.polyline.length) return
+      const path = segment.polyline.map((point) => new AMap.LngLat(point.longitude, point.latitude))
       const polyline = new AMap.Polyline({
-        path: dayPoints.map(([lng, lat]) => new AMap.LngLat(lng, lat)),
+        path,
         strokeColor: color,
-        strokeWeight: 3,
-        strokeOpacity: 0.8,
-        strokeStyle: 'solid',
+        strokeWeight: props.day ? 5 : 4,
+        strokeOpacity: 0.85,
+        showDir: true,
         lineJoin: 'round',
       })
       map.add(polyline)
-    }
+    })
   })
 
-  // 自动缩放到所有标记点
-  if (allPoints.length > 0) {
+  if (rawPoints.length) {
+    const center = computeCenter(rawPoints)
+    map.setCenter(new AMap.LngLat(center.longitude, center.latitude))
+  }
+
+  if (allPoints.length) {
     map.setFitView()
   }
+}
+
+function computeCenter(points: Array<{ longitude: number; latitude: number }>) {
+  const total = points.reduce(
+    (acc, point) => {
+      acc.longitude += point.longitude
+      acc.latitude += point.latitude
+      return acc
+    },
+    { longitude: 0, latitude: 0 },
+  )
+
+  return {
+    longitude: total.longitude / points.length,
+    latitude: total.latitude / points.length,
+  }
+}
+
+function addMarker(AMap: any, lng: number, lat: number, title: string, label: string, content: string) {
+  const marker = new AMap.Marker({
+    position: new AMap.LngLat(lng, lat),
+    title,
+    label: {
+      content: label,
+      direction: 'top',
+    },
+  })
+  const infoWindow = new AMap.InfoWindow({
+    content: `<div style="padding:8px 10px;font-size:12px;line-height:1.6">${content}</div>`,
+    offset: new AMap.Pixel(0, -30),
+  })
+  marker.on('click', () => infoWindow.open(map, marker.getPosition()))
+  map.add(marker)
 }
 </script>
 
 <style scoped>
 .map-container {
   width: 100%;
-  height: 480px;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
+}
+</style>
+
+<style>
+.map-label {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+.hotel-label {
+  background: #1a936f;
+}
+
+.meal-label {
+  background: #ff8c42;
+}
+
+.attraction-label {
+  background: #534ab7;
 }
 </style>

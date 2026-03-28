@@ -38,6 +38,8 @@ class Attraction(BaseModel):
     is_indoor: bool = Field(default=False)
     typecode: str = Field(default="")
     image_url: Optional[str] = None
+    best_visit_time: str = Field(default="", description="适合游玩时段")
+    llm_reason: str = Field(default="", description="LLM 推荐理由")
 
 # ─────────────────────────────────────────
 # 酒店
@@ -64,6 +66,7 @@ class MealRecommendation(BaseModel):
     location: Location = Field(default_factory=Location)
     dist_to_attractions_km: float = Field(default=0.0)
     suggestion: str = Field(default="")
+    estimated_cost_per_person: float = Field(default=0.0, description="预估人均消费")
 
 # ─────────────────────────────────────────
 # 天气
@@ -89,6 +92,28 @@ class Budget(BaseModel):
     total_transportation: float = Field(default=0.0, description="交通费用合计")
     total: float = Field(default=0.0, description="总费用估算")
 
+
+class DailyScheduleItem(BaseModel):
+    time_slot: str = Field(default="", description="上午/午餐/下午/晚餐/晚上")
+    start_time: str = Field(default="", description="建议开始时间")
+    end_time: str = Field(default="", description="建议结束时间")
+    item_type: str = Field(default="", description="attraction/meal/hotel/rest")
+    title: str = Field(default="")
+    reference_name: str = Field(default="", description="对应景点/餐厅/酒店名称")
+    duration_minutes: int = Field(default=0)
+    estimated_cost: float = Field(default=0.0)
+    note: str = Field(default="")
+
+
+class RouteSegment(BaseModel):
+    from_name: str = Field(default="")
+    to_name: str = Field(default="")
+    mode: str = Field(default="", description="步行/驾车/公交/骑行")
+    distance_km: float = Field(default=0.0)
+    duration_minutes: int = Field(default=0)
+    instruction: str = Field(default="")
+    polyline: List[Location] = Field(default_factory=list)
+
 # ─────────────────────────────────────────
 # 每日行程
 # ─────────────────────────────────────────
@@ -98,11 +123,14 @@ class DayPlan(BaseModel):
     day_index: int = Field(default=0)
     description: str = ""
     weather_note: str = Field(default="", description="天气提示，恶劣天气时说明")
+    clothing_recommendation: str = Field(default="", description="穿衣建议")
     transportation: str = ""
     accommodation: str = Field(default="", description="当晚住宿名称")
     hotel: Optional[Hotel] = None
     attractions: List[Attraction] = Field(default_factory=list)
     meals: List[MealRecommendation] = Field(default_factory=list)
+    schedule: List[DailyScheduleItem] = Field(default_factory=list)
+    route_segments: List[RouteSegment] = Field(default_factory=list)
 
 # ─────────────────────────────────────────
 # 完整行程计划（API 响应）

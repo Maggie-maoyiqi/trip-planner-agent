@@ -14,10 +14,12 @@ class TripPlannerOrchestrator:
         self.planner_agent    = PlannerAgent()  # PlannerAgent owns HotelAgent now
 
     async def plan(self, request: TripPlanRequest) -> Dict[str, Any]:
-        # 景点 + 天气 并行（酒店/餐厅 由 PlannerAgent 按需搜索）
-        attractions, weather = await asyncio.gather(
-            self.attraction_agent.run(request.city, request.preferences, request.days),
-            self.weather_agent.run(request.city),
+        weather = await self.weather_agent.run(request.city)
+        attractions = await self.attraction_agent.run(
+            request.city,
+            request.preferences,
+            request.days,
+            weather,
         )
         return await self.planner_agent.run(
             city=request.city,
@@ -33,17 +35,15 @@ class TripPlannerOrchestrator:
         )
 
     async def plan_with_progress(self, request: TripPlanRequest) -> AsyncGenerator[str, None]:
-        yield 'data: {"progress": 10, "status": "正在搜索景点..."}\n\n'
-        attractions = await self.attraction_agent.run(
-            request.city, request.preferences, request.days
-        )
-
-        yield 'data: {"progress": 35, "status": "查询天气中..."}\n\n'
+        yield 'data: {"progress": 10, "status": "查询天气中..."}\n\n'
         weather = await self.weather_agent.run(request.city)
 
-        yield 'data: {"progress": 55, "status": "智能聚类规划行程..."}\n\n'
-        # PlannerAgent 内部会搜酒店+餐厅，进度在这里无法细分，
-        # 前端可在 55~90 段显示一个假进度动画
+        yield 'data: {"progress": 30, "status": "调用 attraction agent 搜索热门景点候选..."}\n\n'
+        attractions = await self.attraction_agent.run(
+            request.city, request.preferences, request.days, weather
+        )
+
+        yield 'data: {"progress": 55, "status": "LLM 正在智能规划每日路线与预算..."}\n\n'
         plan = await self.planner_agent.run(
             city=request.city,
             days=request.days,

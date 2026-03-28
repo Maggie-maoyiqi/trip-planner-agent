@@ -15,6 +15,8 @@ export interface Attraction {
   is_indoor: boolean
   typecode: string
   image_url?: string
+  best_visit_time: string
+  llm_reason: string
 }
 
 export interface Hotel {
@@ -35,6 +37,7 @@ export interface MealRecommendation {
   location: Location
   dist_to_attractions_km: number
   suggestion: string
+  estimated_cost_per_person: number
 }
 
 export interface WeatherInfo {
@@ -55,16 +58,41 @@ export interface Budget {
   total: number
 }
 
+export interface DailyScheduleItem {
+  time_slot: string
+  start_time: string
+  end_time: string
+  item_type: string
+  title: string
+  reference_name: string
+  duration_minutes: number
+  estimated_cost: number
+  note: string
+}
+
+export interface RouteSegment {
+  from_name: string
+  to_name: string
+  mode: string
+  distance_km: number
+  duration_minutes: number
+  instruction: string
+  polyline: Location[]
+}
+
 export interface DayPlan {
   date: string
   day_index: number
   description: string
   weather_note: string
+  clothing_recommendation: string
   transportation: string
   accommodation: string
   hotel: Hotel | null
   attractions: Attraction[]
   meals: MealRecommendation[]
+  schedule: DailyScheduleItem[]
+  route_segments: RouteSegment[]
 }
 
 export interface TripPlan {

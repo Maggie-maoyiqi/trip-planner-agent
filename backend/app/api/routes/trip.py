@@ -1,7 +1,16 @@
 # backend/app/api/routes/trip.py
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from app.models.schemas import TripPlanRequest, TripPlan, Attraction, Location, Hotel, MealRecommendation
+from app.models.schemas import (
+    TripPlanRequest,
+    TripPlan,
+    Attraction,
+    Location,
+    Hotel,
+    MealRecommendation,
+    DailyScheduleItem,
+    RouteSegment,
+)
 from app.agents.trip_planner import trip_planner
 
 router = APIRouter(prefix="/api/trip", tags=["旅行规划"])
@@ -21,6 +30,8 @@ def _dict_to_attraction(a: dict) -> Attraction:
         is_indoor=a.get("is_indoor", False),
         typecode=a.get("typecode", ""),
         image_url=a.get("image_url"),
+        best_visit_time=a.get("best_visit_time", ""),
+        llm_reason=a.get("llm_reason", ""),
     )
 
 def _dict_to_hotel(h: dict) -> Hotel:
@@ -49,6 +60,39 @@ def _dict_to_meal(m: dict) -> MealRecommendation:
         ),
         dist_to_attractions_km=m.get("dist_to_attractions_km", 0.0),
         suggestion=m.get("suggestion", ""),
+        estimated_cost_per_person=m.get("estimated_cost_per_person", 0.0),
+    )
+
+
+def _dict_to_schedule_item(item: dict) -> DailyScheduleItem:
+    return DailyScheduleItem(
+        time_slot=item.get("time_slot", ""),
+        start_time=item.get("start_time", ""),
+        end_time=item.get("end_time", ""),
+        item_type=item.get("item_type", ""),
+        title=item.get("title", ""),
+        reference_name=item.get("reference_name", ""),
+        duration_minutes=item.get("duration_minutes", 0),
+        estimated_cost=item.get("estimated_cost", 0.0),
+        note=item.get("note", ""),
+    )
+
+
+def _dict_to_route_segment(item: dict) -> RouteSegment:
+    return RouteSegment(
+        from_name=item.get("from_name", ""),
+        to_name=item.get("to_name", ""),
+        mode=item.get("mode", ""),
+        distance_km=item.get("distance_km", 0.0),
+        duration_minutes=item.get("duration_minutes", 0),
+        instruction=item.get("instruction", ""),
+        polyline=[
+            Location(
+                longitude=point.get("longitude", 0.0),
+                latitude=point.get("latitude", 0.0),
+            )
+            for point in item.get("polyline", [])
+        ],
     )
 
 def _build_trip_plan(raw: dict) -> TripPlan:
@@ -63,11 +107,14 @@ def _build_trip_plan(raw: dict) -> TripPlan:
             day_index=d.get("day_index", 0),
             description=d.get("description", ""),
             weather_note=d.get("weather_note", ""),
+            clothing_recommendation=d.get("clothing_recommendation", ""),
             transportation=d.get("transportation", ""),
             accommodation=d.get("accommodation", ""),
             hotel=_dict_to_hotel(hotel_dict) if hotel_dict else None,
             attractions=[_dict_to_attraction(a) for a in d.get("attractions", [])],
             meals=[_dict_to_meal(m) for m in d.get("meals", [])],
+            schedule=[_dict_to_schedule_item(item) for item in d.get("schedule", [])],
+            route_segments=[_dict_to_route_segment(item) for item in d.get("route_segments", [])],
         ))
 
     weather_info = [

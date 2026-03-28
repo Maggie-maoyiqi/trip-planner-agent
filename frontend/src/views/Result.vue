@@ -70,7 +70,7 @@
 
       <!-- 地图 -->
       <section id="map" class="card">
-        <h3>行程地图</h3>
+        <h3>全程地图总览</h3>
         <MapView :days="plan.days" />
       </section>
 
@@ -125,6 +125,8 @@ function onAddAttraction(dayIndex: number, name: string) {
     ticket_price: 0,
     is_indoor: false,
     typecode: '',
+    best_visit_time: '',
+    llm_reason: '',
   })
 }
 
