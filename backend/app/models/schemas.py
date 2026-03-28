@@ -1,91 +1,119 @@
+# backend/app/models/schemas.py
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import List, Optional
 
-# ========== 基础模型 ==========
+# ─────────────────────────────────────────
+# 请求模型
+# ─────────────────────────────────────────
+
+class TripPlanRequest(BaseModel):
+    city: str = Field(..., description="目的地城市")
+    start_date: str = Field(..., description="出发日期 YYYY-MM-DD")
+    end_date: str = Field(..., description="返回日期 YYYY-MM-DD")
+    days: int = Field(..., ge=1, le=14, description="行程天数")
+    preferences: str = Field(default="景点 旅游", description="游玩偏好，如：历史文化、自然风光")
+    budget: str = Field(default="中等", description="预算描述，如：经济、中等、豪华")
+    transportation: str = Field(default="公交", description="交通方式，如：飞机、高铁、自驾")
+    accommodation: str = Field(default="舒适", description="住宿类型，如：经济、舒适、豪华")
+
+# ─────────────────────────────────────────
+# 基础地理模型
+# ─────────────────────────────────────────
+
 class Location(BaseModel):
-    """位置信息（经纬度坐标）"""
-    longitude: float = Field(..., description="经度", ge=-180, le=180)
-    latitude: float = Field(..., description="纬度", ge=-90, le=90)
+    longitude: float = Field(default=0.0)
+    latitude: float = Field(default=0.0)
+
+# ─────────────────────────────────────────
+# 景点
+# ─────────────────────────────────────────
 
 class Attraction(BaseModel):
-    """景点信息"""
-    name: str = Field(..., description="景点名称")
-    address: str = Field(..., description="地址")
-    location: Location = Field(..., description="经纬度坐标")
-    visit_duration: int = Field(..., description="建议游览时间(分钟)", gt=0)
-    description: str = Field(..., description="景点描述")
-    category: Optional[str] = Field(default="景点", description="景点类别")
-    rating: Optional[float] = Field(default=None, ge=0, le=5, description="评分")
-    image_url: Optional[str] = Field(default=None, description="图片URL")
-    ticket_price: int = Field(default=0, ge=0, description="门票价格(元)")
+    name: str
+    address: str = ""
+    location: Location = Field(default_factory=Location)
+    visit_duration: int = Field(default=120, description="建议游览时间（分钟）")
+    description: str = ""
+    ticket_price: float = Field(default=0.0, description="门票价格（元）")
+    is_indoor: bool = Field(default=False)
+    typecode: str = Field(default="")
+    image_url: Optional[str] = None
 
-class Meal(BaseModel):
-    """餐饮信息"""
-    type: str = Field(..., description="餐饮类型：breakfast/lunch/dinner/snack")
-    name: str = Field(..., description="餐饮名称")
-    address: Optional[str] = Field(default=None, description="地址")
-    location: Optional[Location] = Field(default=None, description="经纬度坐标")
-    description: Optional[str] = Field(default=None, description="描述")
-    estimated_cost: int = Field(default=0, description="预估费用(元)")
+# ─────────────────────────────────────────
+# 酒店
+# ─────────────────────────────────────────
 
 class Hotel(BaseModel):
-    """酒店信息"""
-    name: str = Field(..., description="酒店名称")
-    address: str = Field(default="", description="酒店地址")
-    location: Optional[Location] = Field(default=None, description="酒店位置")
-    price_range: str = Field(default="", description="价格范围")
-    rating: str = Field(default="", description="评分")
-    distance: str = Field(default="", description="距离景点距离")
-    type: str = Field(default="", description="酒店类型")
-    estimated_cost: int = Field(default=0, description="预估费用(元/晚)")
+    name: str
+    address: str = ""
+    location: Location = Field(default_factory=Location)
+    price_per_night: float = Field(default=0.0, description="每晚价格（元）")
+    total_price: float = Field(default=0.0, description="总住宿费用（元）")
+    accommodation_type: str = Field(default="", description="住宿类型")
+    dist_to_attractions_km: float = Field(default=0.0, description="距当日景点中心距离（km）")
+    image_url: Optional[str] = None
 
-class Budget(BaseModel):
-    """预算信息"""
-    total_attractions: int = Field(default=0, description="景点门票总费用")
-    total_hotels: int = Field(default=0, description="酒店总费用")
-    total_meals: int = Field(default=0, description="餐饮总费用")
-    total_transportation: int = Field(default=0, description="交通总费用")
-    total: int = Field(default=0, description="总费用")
+# ─────────────────────────────────────────
+# 餐厅 / 每餐推荐
+# ─────────────────────────────────────────
+
+class MealRecommendation(BaseModel):
+    meal_type: str = Field(..., description="早餐 / 午餐 / 晚餐")
+    name: str
+    address: str = ""
+    location: Location = Field(default_factory=Location)
+    dist_to_attractions_km: float = Field(default=0.0)
+    suggestion: str = Field(default="")
+
+# ─────────────────────────────────────────
+# 天气
+# ─────────────────────────────────────────
 
 class WeatherInfo(BaseModel):
-    """天气信息"""
-    date: str = Field(..., description="日期")
-    day_weather: str = Field(..., description="白天天气")
-    night_weather: str = Field(..., description="夜间天气")
-    day_temp: int = Field(..., description="白天温度(摄氏度)")
-    night_temp: int = Field(..., description="夜间温度(摄氏度)")
-    wind_direction: str = Field(..., description="风向")
-    wind_power: str = Field(..., description="风力")
+    date: str
+    day_weather: str = ""
+    night_weather: str = ""
+    day_temp: str = "0"
+    night_temp: str = "0"
+    wind_direction: str = ""
+    wind_power: str = ""
+
+# ─────────────────────────────────────────
+# 预算明细
+# ─────────────────────────────────────────
+
+class Budget(BaseModel):
+    total_attractions: float = Field(default=0.0, description="景点门票合计")
+    total_hotels: float = Field(default=0.0, description="住宿费用合计")
+    total_meals: float = Field(default=0.0, description="餐饮费用合计")
+    total_transportation: float = Field(default=0.0, description="交通费用合计")
+    total: float = Field(default=0.0, description="总费用估算")
+
+# ─────────────────────────────────────────
+# 每日行程
+# ─────────────────────────────────────────
 
 class DayPlan(BaseModel):
-    """单日行程"""
-    date: str = Field(..., description="日期")
-    day_index: int = Field(..., description="第几天(从0开始)")
-    description: str = Field(..., description="当日行程描述")
-    transportation: str = Field(..., description="交通方式")
-    accommodation: str = Field(..., description="住宿安排")
-    hotel: Optional[Hotel] = Field(default=None, description="酒店信息")
-    attractions: List[Attraction] = Field(default_factory=list, description="景点列表")
-    meals: List[Meal] = Field(default_factory=list, description="餐饮安排")
+    date: str = Field(..., description="如：第1天")
+    day_index: int = Field(default=0)
+    description: str = ""
+    weather_note: str = Field(default="", description="天气提示，恶劣天气时说明")
+    transportation: str = ""
+    accommodation: str = Field(default="", description="当晚住宿名称")
+    hotel: Optional[Hotel] = None
+    attractions: List[Attraction] = Field(default_factory=list)
+    meals: List[MealRecommendation] = Field(default_factory=list)
+
+# ─────────────────────────────────────────
+# 完整行程计划（API 响应）
+# ─────────────────────────────────────────
 
 class TripPlan(BaseModel):
-    """完整旅行计划"""
-    city: str = Field(..., description="目的地城市")
-    start_date: str = Field(..., description="开始日期")
-    end_date: str = Field(..., description="结束日期")
-    days: List[DayPlan] = Field(default_factory=list, description="每日行程")
-    weather_info: List[WeatherInfo] = Field(default_factory=list, description="天气信息")
-    overall_suggestions: str = Field(..., description="总体建议")
-    budget: Optional[Budget] = Field(default=None, description="预算信息")
-
-# ========== 请求模型 ==========
-class TripPlanRequest(BaseModel):
-    """用户发起规划的请求"""
-    city: str = Field(..., description="目的地城市")
-    start_date: str = Field(..., description="开始日期 YYYY-MM-DD")
-    end_date: str = Field(..., description="结束日期 YYYY-MM-DD")
-    days: int = Field(..., description="旅行天数", ge=1, le=30)
-    preferences: str = Field(..., description="偏好（历史文化/自然风光/美食等）")
-    budget: str = Field(..., description="预算（经济/中等/豪华）")
-    transportation: str = Field(..., description="交通方式")
-    accommodation: str = Field(..., description="住宿类型")
+    city: str
+    start_date: str
+    end_date: str
+    days: List[DayPlan] = Field(default_factory=list)
+    hotels: List[Hotel] = Field(default_factory=list, description="推荐酒店列表（供前端展示）")
+    weather_info: List[WeatherInfo] = Field(default_factory=list)
+    overall_suggestions: str = ""
+    budget: Optional[Budget] = None

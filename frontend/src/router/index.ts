@@ -1,7 +1,7 @@
 // frontend/src/router/index.ts
-import { createRouter, createWebHistory } from 'vue-router';
-import Home from '../views/Home.vue';
-import Result from '../views/Result.vue';
+import { createRouter, createWebHistory } from 'vue-router'
+import Home from '../views/Home.vue'
+import Result from '../views/Result.vue'
 
 const routes = [
   {
@@ -14,11 +14,11 @@ const routes = [
     name: 'result',
     component: Result,
   },
-];
+]
 
 const router = createRouter({
   history: createWebHistory(),
   routes,
-});
+})
 
-export default router;
+export default router
